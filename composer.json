@@ -1,0 +1,17 @@
+{
+    "name": "aazsamir/temrest",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Aazsamir\\Temrest\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "aazsamir",
+            "email": "sutikkukun@gmail.com"
+        }
+    ],
+    "require": {}
+}
