@@ -1,6 +1,6 @@
 # Temrest
 
-Temrest is a package for building RESTful APIs with [Tempest framework](https://github.com/tempestphp/tempest-framework)/
+Temrest is a package for building RESTful APIs with [Tempest framework](https://github.com/tempestphp/tempest-framework).
 
 _It's still in early FAFO development stage._
 
