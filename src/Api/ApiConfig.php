@@ -12,6 +12,7 @@ class ApiConfig
     public function __construct(
         public string $name,
         public string $version = '1.0',
+        public ?string $description = null,
         // internal
         public array $endpoints = [],
     ) {}

@@ -16,5 +16,6 @@ class Api implements Route
         public string $uri,
         public array $middleware = [],
         public array $without = [],
+        public ?ApiInfo $apiInfo = null,
     ) {}
 }

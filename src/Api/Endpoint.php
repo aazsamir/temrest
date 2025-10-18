@@ -16,12 +16,14 @@ class Endpoint
         public array $pathParameters = [],
         public ?string $requestClass = null,
         public ?string $responseClass = null,
+        public ?ApiInfo $apiInfo = null,
     ) {}
 
     public static function fromRoute(
         Route $route,
         DiscoveredRoute $discoveredRoute,
         MethodReflector $method,
+        ?ApiInfo $apiInfo = null,
     ): self {
         $requestClass = null;
 
@@ -45,6 +47,7 @@ class Endpoint
             pathParameters: $discoveredRoute->parameters,
             requestClass: $requestClass,
             responseClass: $responseClass,
+            apiInfo: $apiInfo,
         );
     }
 }

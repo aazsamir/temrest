@@ -25,21 +25,27 @@ class EndpointDiscovery implements Discovery
     {
         foreach ($class->getPublicMethods() as $method) {
             $routeAttributes = $method->getAttributes(Route::class);
+            $apiInfoAttribute = $method->getAttribute(ApiInfo::class);
 
             foreach ($routeAttributes as $routeAttribute) {
-                $this->discoveryItems->add($location, [$method, $routeAttribute]);
+                if ($routeAttribute instanceof Api && $apiInfoAttribute === null) {
+                    $apiInfoAttribute = $routeAttribute->apiInfo;
+                }
+
+                $this->discoveryItems->add($location, [$method, $routeAttribute, $apiInfoAttribute]);
             }
         }
     }
 
     public function apply(): void
     {
-        foreach ($this->discoveryItems as [$method, $routeAttribute]) {
+        foreach ($this->discoveryItems as [$method, $routeAttribute, $apiInfoAttribute]) {
             /** @var \Tempest\Reflection\MethodReflector $method */
             /** @var Route $routeAttribute */
+            /** @var ApiInfo|null $apiInfoAttribute */
 
             $discoveredRoute = DiscoveredRoute::fromRoute($routeAttribute, $method);
-            $endpoint = Endpoint::fromRoute($routeAttribute, $discoveredRoute, $method);
+            $endpoint = Endpoint::fromRoute($routeAttribute, $discoveredRoute, $method, $apiInfoAttribute);
 
             $this->apiConfig->addEndpoint($endpoint);
         }

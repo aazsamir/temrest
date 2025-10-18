@@ -47,6 +47,7 @@ class SchemaGenerator
         $openapi = new OpenApi(
             info: new Info(
                 title: $this->config->name,
+                description: $this->config->description,
             ),
         );
 
@@ -65,6 +66,13 @@ class SchemaGenerator
             $path->parameters = $this->endpointToParameters($endpoint);
             $path->requestBody = $this->endpointToRequestBody($endpoint);
             $path->responses = $this->endpointToResponses($endpoint);
+
+            if ($endpoint->apiInfo) {
+                $path->description = $endpoint->apiInfo->description;
+                $path->summary = $endpoint->apiInfo->summary;
+                $path->operationId = $endpoint->apiInfo->operationId;
+            }
+
 
             $paths[] = $path;
         }
