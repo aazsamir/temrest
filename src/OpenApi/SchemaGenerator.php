@@ -303,6 +303,10 @@ class SchemaGenerator
                 return 'integer';
             }
 
+            if ($type === 'bool') {
+                return 'boolean';
+            }
+
             return $type;
         }
 
