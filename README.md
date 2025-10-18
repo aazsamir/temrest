@@ -6,6 +6,10 @@ _It's still in early FAFO development stage._
 
 ## Usage
 
+```
+composer require aazsamir/temrest:dev-main
+```
+
 Temrest reads route definitions directly from your types.
 
 Given this example code:
