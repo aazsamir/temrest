@@ -77,7 +77,7 @@ class OpenApi
     public function namedSchemas(): array
     {
         $namedSchemas = [];
-        
+
         foreach ($this->schemas() as $schema) {
             $this->saveSchema($schema, $namedSchemas);
         }

@@ -74,7 +74,7 @@ class Schema
             'maxProperties' => $this->maxProperties,
             'required' => $this->required,
             'items' => $this->items?->toArray(true),
-            'properties' => $this->properties ? array_map(fn(Schema $schema) => $schema->toArray(true), $this->properties) : null,
+            'properties' => $this->properties ? array_map(fn (Schema $schema) => $schema->toArray(true), $this->properties) : null,
             'additionalProperties' => $this->additionalProperties,
             'default' => $this->default,
             'example' => $this->example,
@@ -82,12 +82,12 @@ class Schema
             'nullable' => $this->nullable,
             'readOnly' => $this->readOnly,
             'writeOnly' => $this->writeOnly,
-            'allOf' => $this->allOf ? array_map(fn(Schema $schema) => $schema->toArray(true), $this->allOf) : null,
-            'oneOf' => $this->oneOf ? array_map(fn(Schema $schema) => $schema->toArray(true), $this->oneOf) : null,
-            'anyOf' => $this->anyOf ? array_map(fn(Schema $schema) => $schema->toArray(true), $this->anyOf) : null,
+            'allOf' => $this->allOf ? array_map(fn (Schema $schema) => $schema->toArray(true), $this->allOf) : null,
+            'oneOf' => $this->oneOf ? array_map(fn (Schema $schema) => $schema->toArray(true), $this->oneOf) : null,
+            'anyOf' => $this->anyOf ? array_map(fn (Schema $schema) => $schema->toArray(true), $this->anyOf) : null,
         ];
 
-        return array_filter($data, fn($value) => !is_null($value));
+        return array_filter($data, fn ($value) => !is_null($value));
     }
 
     /**

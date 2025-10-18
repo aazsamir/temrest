@@ -36,7 +36,6 @@ trait IsApiResponse
 
     public Session $session {
         get => get(Session::class);
-
     }
 
     public CookieManager $cookieManager {

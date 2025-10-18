@@ -17,11 +17,12 @@ class RequestBody
         return array_filter([
             'description' => $this->description,
             'required' => $this->required,
-            'content' => $this->schema ? [
-                'application/json' => [
-                    'schema' => $this->schema->toArray(true),
-                ],
-            ] : null,
+            'content' => $this->schema
+                ? [
+                    'application/json' => [
+                        'schema' => $this->schema->toArray(true),
+                    ],
+                ] : null,
         ]);
     }
 }

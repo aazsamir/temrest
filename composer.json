@@ -16,5 +16,13 @@
     "minimum-stability": "dev",
     "require": {
         "tempest/framework": "dev-main"
+    },
+    "require-dev": {
+        "carthage-software/mago": "dev-main"
+    },
+    "config": {
+        "allow-plugins": {
+            "carthage-software/mago": true
+        }
     }
 }

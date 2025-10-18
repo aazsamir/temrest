@@ -30,6 +30,7 @@ class GenerateSchemaCommand
         }
 
         if ($debug) {
+            // @mago-expect lint:no-debug-symbols
             dump($schema);
         }
 

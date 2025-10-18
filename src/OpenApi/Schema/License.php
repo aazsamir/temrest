@@ -19,7 +19,7 @@ class License
         return [
             'name' => $this->name,
             'identifier' => $this->identifier,
-            'url' => is_string($this->url) ? $this->url : ($this->url?->__toString() ?? null),
+            'url' => is_string($this->url) ? $this->url : $this->url?->__toString() ?? null,
         ];
     }
 }

@@ -228,7 +228,7 @@ class MetadataExtractor
 
     private function getPropertyMetadata(
         \Tempest\Reflection\PropertyReflector $propertyReflector,
-        array $uses
+        array $uses,
     ): ?ArrayMetadata {
         $docComment = $propertyReflector->getReflection()->getDocComment();
 

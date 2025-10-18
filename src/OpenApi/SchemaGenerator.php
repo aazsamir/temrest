@@ -73,7 +73,6 @@ class SchemaGenerator
                 $path->operationId = $endpoint->apiInfo->operationId;
             }
 
-
             $paths[] = $path;
         }
 
@@ -86,11 +85,7 @@ class SchemaGenerator
             return null;
         }
 
-        if (
-            $endpoint->route->method !== Method::POST &&
-            $endpoint->route->method !== Method::PUT &&
-            $endpoint->route->method !== Method::PATCH
-        ) {
+        if ($endpoint->route->method !== Method::POST && $endpoint->route->method !== Method::PUT && $endpoint->route->method !== Method::PATCH) {
             return null;
         }
 
@@ -178,7 +173,7 @@ class SchemaGenerator
 
         return $this->typeToSchema(
             $returnTypeReflector,
-            $classMetadata->methods->getMethodReturnType($methodReflector->getName())
+            $classMetadata->methods->getMethodReturnType($methodReflector->getName()),
         );
     }
 
@@ -209,7 +204,7 @@ class SchemaGenerator
             $schema->format = 'date-time';
         } elseif ($type->isClass()) {
             $this->handleClassType($type, $schema);
-        } elseif(\str_contains($type->getName(), '|')) {
+        } elseif (\str_contains($type->getName(), '|')) {
             $this->handleUnionType($type, $schema);
         } else {
             throw new TypeNotSupported($type);
@@ -236,7 +231,7 @@ class SchemaGenerator
 
         if ($type->isBackedEnum()) {
             $cases = array_map(
-                fn($case) => $case->value,
+                fn ($case) => $case->value,
                 $type->getName()::cases(),
             );
             $schema->enum = $cases;
@@ -245,7 +240,7 @@ class SchemaGenerator
         }
 
         $cases = array_map(
-            fn($case) => $case->name,
+            fn ($case) => $case->name,
             $type->getName()::cases(),
         );
         $schema->enum = $cases;

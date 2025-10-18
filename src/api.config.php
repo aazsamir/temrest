@@ -7,5 +7,5 @@ use Aazsamir\Temrest\Api\ApiConfig;
 use function Tempest\env;
 
 return new ApiConfig(
-    name: env('APPLICATION_NAME', 'Temrest') . ' API', 
+    name: env('APPLICATION_NAME', 'Temrest') . ' API',
 );

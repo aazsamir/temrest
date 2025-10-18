@@ -34,7 +34,7 @@ class Path
             'summary' => $this->summary,
             'operationId' => $this->operationId,
             'responses' => $responses,
-            'parameters' => array_map(fn(Parameter $parameter) => $parameter->toArray(), $this->parameters),
+            'parameters' => array_map(fn (Parameter $parameter) => $parameter->toArray(), $this->parameters),
             'requestBody' => $this->requestBody?->toArray(),
         ]);
     }

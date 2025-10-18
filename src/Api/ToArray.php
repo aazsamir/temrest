@@ -35,13 +35,13 @@ trait ToArray
             return $value->value;
         } elseif ($value instanceof \UnitEnum) {
             return $value->name;
-        } elseif (\is_array($value) && !empty($value)) {
-            return array_map(fn ($item) => $this->serializeValue($item), $value);
+        } elseif (\is_array($value) && $value !== []) {
+            return array_map($this->serializeValue(...), $value);
         } elseif ($value instanceof \DateTimeInterface) {
             return $value->format(\DateTimeInterface::ATOM);
         } elseif (is_object($value)) {
             return $this->serializeArray(get_object_vars($value));
-        }else {
+        } else {
             return $value;
         }
     }

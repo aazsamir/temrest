@@ -16,11 +16,12 @@ class Response
     {
         return array_filter([
             'description' => $this->description,
-            'content' => $this->schema ? [
-                'application/json' => [
-                    'schema' => $this->schema->toArray(),
-                ],
-            ] : null,
+            'content' => $this->schema
+                ? [
+                    'application/json' => [
+                        'schema' => $this->schema->toArray(),
+                    ],
+                ] : null,
         ]);
     }
 }
