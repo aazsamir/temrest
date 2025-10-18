@@ -209,6 +209,8 @@ class SchemaGenerator
             $schema->format = 'date-time';
         } elseif ($type->isClass()) {
             $this->handleClassType($type, $schema);
+        } elseif(\str_contains($type->getName(), '|')) {
+            $this->handleUnionType($type, $schema);
         } else {
             throw new TypeNotSupported($type);
         }
@@ -268,6 +270,16 @@ class SchemaGenerator
         }
 
         $schema->properties = $properties;
+    }
+
+    private function handleUnionType(TypeReflector $type, Schema $schema): void
+    {
+        $types = [];
+        foreach (explode('|', $type->getName()) as $unionType) {
+            $unionTypeReflector = new TypeReflector($unionType);
+            $types[] = $this->typeToSchema($unionTypeReflector);
+        }
+        $schema->oneOf = $types;
     }
 
     private function shouldSkipProperty(PropertyReflector $propertyReflector, TypeReflector $parentType): bool
