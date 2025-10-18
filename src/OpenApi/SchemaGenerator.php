@@ -8,9 +8,7 @@ use Aazsamir\Temrest\Api\ApiConfig;
 use Aazsamir\Temrest\Api\ApiResponse;
 use Aazsamir\Temrest\Api\Endpoint;
 use Aazsamir\Temrest\OpenApi\Metadata\ArrayMetadata;
-use Aazsamir\Temrest\OpenApi\Metadata\ClassMetadata;
-use Aazsamir\Temrest\OpenApi\Metadata\MethodMetadata;
-use Aazsamir\Temrest\OpenApi\Metadata\ParameterMetadata;
+use Aazsamir\Temrest\OpenApi\Metadata\MetadataExtractor;
 use Aazsamir\Temrest\OpenApi\Schema\Info;
 use Aazsamir\Temrest\OpenApi\Schema\OpenApi;
 use Aazsamir\Temrest\OpenApi\Schema\Parameter;
@@ -30,13 +28,21 @@ use Tempest\Validation\SkipValidation;
 class SchemaGenerator
 {
     private array $schemas = [];
-    private array $metadatas = [];
 
     public function __construct(
         private ApiConfig $config,
+        private MetadataExtractor $metadataExtractor,
     ) {}
 
     public function generate(): OpenApi
+    {
+        $openapi = $this->createOpenApi();
+        $this->addPaths($openapi);
+
+        return $openapi;
+    }
+
+    private function createOpenApi(): OpenApi
     {
         $openapi = new OpenApi(
             info: new Info(
@@ -44,6 +50,11 @@ class SchemaGenerator
             ),
         );
 
+        return $openapi;
+    }
+
+    private function addPaths(OpenApi $openapi): void
+    {
         $paths = [];
 
         foreach ($this->config->endpoints as $endpoint) {
@@ -51,16 +62,14 @@ class SchemaGenerator
                 path: $endpoint->route->uri,
                 method: $endpoint->route->method->value,
             );
-            $path->responses = $this->endpointToResponses($endpoint);
             $path->parameters = $this->endpointToParameters($endpoint);
             $path->requestBody = $this->endpointToRequestBody($endpoint);
+            $path->responses = $this->endpointToResponses($endpoint);
 
             $paths[] = $path;
         }
 
         $openapi->paths = $paths;
-
-        return $openapi;
     }
 
     private function endpointToRequestBody(Endpoint $endpoint): ?RequestBody
@@ -78,7 +87,6 @@ class SchemaGenerator
         }
 
         $request = new RequestBody();
-
         $request->schema = $this->typeToSchema(
             new TypeReflector($endpoint->requestClass),
         );
@@ -139,7 +147,6 @@ class SchemaGenerator
         $response = new Response(
             statusCode: 200,
         );
-
         $response->description = 'Successful Response';
 
         if ($endpoint->responseClass === null) {
@@ -158,7 +165,7 @@ class SchemaGenerator
 
     private function methodReturnToSchema(MethodReflector $methodReflector): Schema
     {
-        $classMetadata = $this->getClassMetadata($methodReflector->getDeclaringClass());
+        $classMetadata = $this->metadataExtractor->getClassMetadata($methodReflector->getDeclaringClass());
         $returnTypeReflector = $methodReflector->getReturnType();
 
         return $this->typeToSchema(
@@ -169,75 +176,96 @@ class SchemaGenerator
 
     private function typeToSchema(TypeReflector $type, ?ArrayMetadata $arrayMeta = null): Schema
     {
-        $key = $type->getName() . ($type->isNullable() ? '|null' : '') . $arrayMeta?->docBlock();
+        $typekey = md5(json_encode([
+            'type' => $type->getName(),
+            'nullable' => $type->isNullable(),
+            'arrayMeta' => $arrayMeta?->docBlock(),
+        ]));
 
-        if (array_key_exists($key, $this->schemas)) {
-            return $this->schemas[$key];
+        if (array_key_exists($typekey, $this->schemas)) {
+            return $this->schemas[$typekey];
         }
 
         $schema = new Schema();
-        $this->schemas[$key] = $schema;
+        $this->schemas[$typekey] = $schema;
         $schema->nullable = $type->isNullable();
 
         if ($type->isIterable()) {
-            $schema->type = 'array';
-            if ($arrayMeta !== null) {
-                $schema->items = $this->typeToSchema(
-                    new TypeReflector($arrayMeta->type),
-                );
-            }
+            $this->handleIterableType($type, $schema, $arrayMeta);
         } elseif ($type->isBuiltIn()) {
             $schema->type = $this->typeToString($type);
         } elseif ($type->isEnum()) {
-            $schema->type = 'string';
-            $schema->name = $type->getShortName();
-
-            if ($type->isBackedEnum()) {
-                $cases = array_map(
-                    fn($case) => $case->value,
-                    $type->getName()::cases(),
-                );
-                $schema->enum = $cases;
-            } else {
-                $cases = array_map(
-                    fn($case) => $case->name,
-                    $type->getName()::cases(),
-                );
-                $schema->enum = $cases;
-            }
+            $this->handleEnumType($type, $schema);
         } elseif ($type->matches(DateTimeInterface::class)) {
             $schema->type = 'string';
             $schema->format = 'date-time';
         } elseif ($type->isClass()) {
-            $schema->name = $type->getShortName();
-            $schema->type = 'object';
-            $properties = [];
-            $classMeta = $this->getClassMetadata($type->asClass());
-
-            foreach ($type->asClass()->getProperties() as $property) {
-                if ($this->shouldSkipProperty($property, $type)) {
-                    continue;
-                }
-
-                $arrayMeta = $classMeta->properties->getProperty($property->getName());
-                $properties[$property->getName()] = $this->typeToSchema($property->getType(), $arrayMeta?->type);
-            }
-
-            $schema->properties = $properties;
+            $this->handleClassType($type, $schema);
         } else {
-            dd('what we got here?', $type);
+            throw new TypeNotSupported($type);
         }
 
         return $schema;
     }
 
+    private function handleIterableType(TypeReflector $type, Schema $schema, ?ArrayMetadata $arrayMeta): void
+    {
+        $schema->type = 'array';
+
+        if ($arrayMeta !== null) {
+            $schema->items = $this->typeToSchema(
+                new TypeReflector($arrayMeta->type),
+            );
+        }
+    }
+
+    private function handleEnumType(TypeReflector $type, Schema $schema): void
+    {
+        $schema->type = 'string';
+        $schema->name = $type->getShortName();
+
+        if ($type->isBackedEnum()) {
+            $cases = array_map(
+                fn($case) => $case->value,
+                $type->getName()::cases(),
+            );
+            $schema->enum = $cases;
+
+            return;
+        }
+
+        $cases = array_map(
+            fn($case) => $case->name,
+            $type->getName()::cases(),
+        );
+        $schema->enum = $cases;
+    }
+
+    private function handleClassType(TypeReflector $type, Schema $schema): void
+    {
+        $schema->name = $type->getShortName();
+        $schema->type = 'object';
+        $properties = [];
+        $classMeta = $this->metadataExtractor->getClassMetadata($type->asClass());
+
+        foreach ($type->asClass()->getProperties() as $property) {
+            if ($this->shouldSkipProperty($property, $type)) {
+                continue;
+            }
+
+            $arrayMeta = $classMeta->properties->getProperty($property->getName());
+            $propertySchema = $this->typeToSchema($property->getType(), $arrayMeta?->type);
+            $propertySchema->nullable = $propertySchema->nullable || $property->hasDefaultValue();
+            $properties[$property->getName()] = $propertySchema;
+        }
+
+        $schema->properties = $properties;
+    }
+
     private function shouldSkipProperty(PropertyReflector $propertyReflector, TypeReflector $parentType): bool
     {
         if ($parentType->matches(Request::class)) {
-            $requestReflector = new ClassReflector(Request::class);
-            if ($requestReflector->hasProperty($propertyReflector->getName())) {
-                return true;
-            }
+            // @TODO: probably shouldn't use this attribute for this purpose
             if ($propertyReflector->hasAttribute(SkipValidation::class)) {
                 return true;
             }
@@ -259,169 +287,5 @@ class SchemaGenerator
         }
 
         return $type->getShortName();
-    }
-
-    // I thought that it would be easier and at some point I was too far deep into it to back out
-    private function getClassMetadata(ClassReflector $classReflector): ClassMetadata
-    {
-        if (array_key_exists($classReflector->getName(), $this->metadatas)) {
-            return $this->metadatas[$classReflector->getName()];
-        }
-
-        // parse `use Namespace\Class;` statements to resolve full class names
-        $uses = [];
-        $file = fopen($classReflector->getReflection()->getFileName(), 'r');
-
-        while (($line = fgets($file)) !== false) {
-            // @TODO: handle `as` imports
-            if (preg_match('/use\s+([^;]+);/', $line, $matches)) {
-                $fullClass = trim($matches[1]);
-                $shortClass = substr($fullClass, strrpos($fullClass, '\\') + 1);
-                $uses[$shortClass] = $fullClass;
-            }
-
-            $classDefinitions = [
-                'class',
-                'readonly class',
-                'final class',
-                'abstract class',
-                'final readonly class',
-                'readonly final class',
-            ];
-
-            foreach ($classDefinitions as $definition) {
-                if (str_starts_with(trim($line), $definition . ' ')) {
-                    // reached class definition, stop processing further
-                    break 2;
-                }
-            }
-        }
-
-        fclose($file);
-
-        $fullTypefn = function (string $type) use ($uses, $classReflector): string {
-            $typeReflector = new TypeReflector($type);
-
-            if ($typeReflector->isBuiltIn() || $type === 'mixed') {
-                return $type;
-            }
-            if (array_key_exists($type, $uses)) {
-                return $uses[$type];
-            } elseif ($classReflector->getReflection()->getNamespaceName() !== null) {
-                return $classReflector->getReflection()->getNamespaceName() . '\\' . $type;
-            }
-
-            return $type;
-        };
-
-        // @return Type[]
-        $returnListRegex = '/@return\s+([^\s\[\]]+)(\[\])?/';
-        // @return array<string, Type>
-        $returnMapRegex = '/@return\s+array<([^\s\[\]]+),\s*([^\s\[\]]+)>/';
-        // @return array<Type>
-        $returnArrayRegex = '/@return\s+array<([^\s\[\]]+)>/';
-
-        // @param Type[] $var
-        $varListRegex = '/@(param|var)\s+([^\s\[\]<]+)(\[\])?\s+\$([^\s]+)/';
-        // @param array<string, Type> $var
-        $varMapRegex = '/@(param|var)\s+array<([^\s\[\]]+),\s*([^\s\[\]]+)>\\s+\$([^\s]+)/';
-        // @param array<Type> $var
-        $varArrayRegex = '/@(param|var)\s+array<([^\s\[\]]+)>\\s+\$([^\s]+)/';
-
-        // $metadata = [];
-        $metadata = new ClassMetadata(
-            type: $classReflector->getName(),
-        );
-
-        foreach ($classReflector->getPublicMethods() as $methodReflector) {
-            $docComment = $methodReflector->getReflection()->getDocComment();
-
-            if ($docComment === false) {
-                continue;
-            }
-
-            $docComment = \preg_replace('/[ ]+/', ' ', $docComment);
-
-            $type = null;
-            $regex = null;
-            $key = null;
-
-            if (\preg_match($returnMapRegex, $docComment, $matches)) {
-                $key = $matches[1];
-                $type = $matches[2];
-                $regex = 'map';
-            } elseif (preg_match($returnArrayRegex, $docComment, $matches)) {
-                $type = $matches[1];
-                $regex = 'array';
-            } elseif (preg_match($returnListRegex, $docComment, $matches)) {
-                $type = $matches[1];
-                $regex = 'list';
-            }
-
-            if ($type !== null) {
-                $metadata->methods->setMethodReturnType(
-                    methodName: $methodReflector->getName(),
-                    returnType: new ArrayMetadata(
-                        type: $fullTypefn($type),
-                        key: $key !== null ? $fullTypefn($key) : null,
-                    ),
-                );
-            }
-
-            // param parsing
-            if (\preg_match_all($varListRegex, $docComment, $matches)) {
-                foreach ($matches[0] as $index => $match) {
-                    $varName = $matches[4][$index];
-                    $varType = $matches[2][$index];
-                    $metadata->addMethodParameter(
-                        methodName: $methodReflector->getName(),
-                        parameter: new ParameterMetadata(
-                            name: $varName,
-                            type: new ArrayMetadata(
-                                type: $fullTypefn($varType),
-                            ),
-                        ),
-                    );
-                }
-            }
-
-            if (\preg_match_all($varMapRegex, $docComment, $matches)) {
-                foreach ($matches[0] as $index => $match) {
-                    $varName = $matches[4][$index];
-                    $varType = $matches[3][$index];
-                    $varKey = $matches[2][$index];
-                    $metadata->addMethodParameter(
-                        methodName: $methodReflector->getName(),
-                        parameter: new ParameterMetadata(
-                            name: $varName,
-                            type: new ArrayMetadata(
-                                type: $fullTypefn($varType),
-                                key: $fullTypefn($varKey),
-                            ),
-                        ),
-                    );
-                }
-            }
-
-            if (\preg_match_all($varArrayRegex, $docComment, $matches)) {
-                foreach ($matches[0] as $index => $match) {
-                    $varName = $matches[3][$index];
-                    $varType = $matches[2][$index];
-                    $metadata->addMethodParameter(
-                        methodName: $methodReflector->getName(),
-                        parameter: new ParameterMetadata(
-                            name: $varName,
-                            type: new ArrayMetadata(
-                                type: $fullTypefn($varType),
-                            ),
-                        ),
-                    );
-                }
-            }
-        }
-
-        $this->metadatas[$classReflector->getName()] = $metadata;
-
-        return $metadata;
     }
 }
