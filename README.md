@@ -122,3 +122,21 @@ components:
         - cat
       nullable: false
 ```
+
+## How it works
+
+Temrest reads all defined routes and
+- their path parameters (`/api/users/{id}`)
+- type-hinted request parameters (`public function update(UpdateUserRequest $request)`)
+- type-hinted response types (`public function list(): ListUsersResponse`) that implement `ApiResponse` interface, by reflecting on `toResponse()` method
+- recursively traverses properties of request and response types to generate OpenAPI schemas
+
+## Known Limitations
+
+Given that it was hacked on during weekend, Temrest lacks support for
+- nullable arrays
+- nested generics
+- dictionary types
+- advanced validation rules (e.g. minLength, maximum, pattern, etc.)
+- authentication schemes
+- tests :]
