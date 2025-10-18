@@ -141,7 +141,6 @@ trait IsApiResponse
         }
 
         $data = $this->serializeArray($data);
-        dd($data);
 
         return \json_encode($data);
     }
