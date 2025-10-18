@@ -13,5 +13,8 @@
             "email": "sutikkukun@gmail.com"
         }
     ],
-    "require": {}
+    "minimum-stability": "dev",
+    "require": {
+        "tempest/framework": "dev-main"
+    }
 }
