@@ -87,15 +87,13 @@ class OpenApi
 
     private function saveSchema(Schema $schema, array &$namedSchemas): void
     {
-        if ($schema->name === null) {
-            return;
-        }
+        if ($schema->name !== null) {
+            if (isset($namedSchemas[$schema->name])) {
+                return;
+            }
 
-        if (isset($namedSchemas[$schema->name])) {
-            return;
+            $namedSchemas[$schema->name] = $schema;
         }
-
-        $namedSchemas[$schema->name] = $schema;
 
         foreach ($schema->schemas() as $childSchema) {
             $this->saveSchema($childSchema, $namedSchemas);
