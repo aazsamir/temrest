@@ -11,6 +11,9 @@ use Tempest\Router\Routing\Construction\DiscoveredRoute;
 
 class Endpoint
 {
+    /**
+     * @param string[] $pathParameters
+     */
     public function __construct(
         public Route $route,
         public array $pathParameters = [],
@@ -45,8 +48,8 @@ class Endpoint
         return new self(
             route: $route,
             pathParameters: $discoveredRoute->parameters,
-            requestClass: $requestClass,
-            responseClass: $responseClass,
+            requestClass: $apiInfo?->requestClass ?? $requestClass,
+            responseClass: $apiInfo?->responseClass ?? $responseClass,
             apiInfo: $apiInfo,
         );
     }
