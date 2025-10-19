@@ -27,11 +27,20 @@ use Tempest\Validation\SkipValidation;
 
 class SchemaGenerator
 {
+    private const METHODS_WITH_BODY = [Method::POST, Method::PUT, Method::PATCH];
+    private const BUILT_IN_TYPE_MAPPINGS = [
+        'int' => 'integer',
+        'bool' => 'boolean',
+    ];
+
+    /**
+     * @var array<string, Schema>
+     */
     private array $schemas = [];
 
     public function __construct(
-        private ApiConfig $config,
-        private MetadataExtractor $metadataExtractor,
+        private readonly ApiConfig $config,
+        private readonly MetadataExtractor $metadataExtractor,
     ) {}
 
     public function generate(): OpenApi
@@ -44,84 +53,98 @@ class SchemaGenerator
 
     private function createOpenApi(): OpenApi
     {
-        $openapi = new OpenApi(
+        return new OpenApi(
             info: new Info(
                 title: $this->config->name,
                 description: $this->config->description,
             ),
         );
-
-        return $openapi;
     }
 
     private function addPaths(OpenApi $openapi): void
     {
-        $paths = [];
-
-        foreach ($this->config->endpoints as $endpoint) {
-            $path = new Path(
-                path: $endpoint->route->uri,
-                method: $endpoint->route->method->value,
-            );
-            $path->parameters = $this->endpointToParameters($endpoint);
-            $path->requestBody = $this->endpointToRequestBody($endpoint);
-            $path->responses = $this->endpointToResponses($endpoint);
-
-            if ($endpoint->apiInfo) {
-                $path->description = $endpoint->apiInfo->description;
-                $path->summary = $endpoint->apiInfo->summary;
-                $path->operationId = $endpoint->apiInfo->operationId;
-            }
-
-            $paths[] = $path;
-        }
+        $paths = array_map(
+            fn (Endpoint $endpoint) => $this->createPathFromEndpoint($endpoint),
+            $this->config->endpoints,
+        );
 
         $openapi->paths = $paths;
     }
 
-    private function endpointToRequestBody(Endpoint $endpoint): ?RequestBody
+    private function createPathFromEndpoint(Endpoint $endpoint): Path
     {
-        if ($endpoint->requestClass === null) {
-            return null;
-        }
-
-        if ($endpoint->route->method !== Method::POST && $endpoint->route->method !== Method::PUT && $endpoint->route->method !== Method::PATCH) {
-            return null;
-        }
-
-        $request = new RequestBody();
-        $request->schema = $this->typeToSchema(
-            new TypeReflector($endpoint->requestClass),
+        $path = new Path(
+            path: $endpoint->route->uri,
+            method: $endpoint->route->method->value,
         );
 
-        return $request;
+        $path->parameters = $this->endpointToParameters($endpoint);
+        $path->requestBody = $this->endpointToRequestBody($endpoint);
+        $path->responses = $this->endpointToResponses($endpoint);
+
+        $this->setPathMetadata($path, $endpoint);
+
+        return $path;
+    }
+
+    private function setPathMetadata(Path $path, Endpoint $endpoint): void
+    {
+        if (!$endpoint->apiInfo) {
+            return;
+        }
+
+        $path->description = $endpoint->apiInfo->description;
+        $path->summary = $endpoint->apiInfo->summary;
+        $path->operationId = $endpoint->apiInfo->operationId;
+    }
+
+    private function endpointToRequestBody(Endpoint $endpoint): ?RequestBody
+    {
+        if ($endpoint->requestClass === null || !$this->methodHasBody($endpoint->route->method)) {
+            return null;
+        }
+
+        return new RequestBody(
+            schema: $this->typeToSchema(new TypeReflector($endpoint->requestClass)),
+        );
+    }
+
+    private function methodHasBody(Method $method): bool
+    {
+        return in_array($method, self::METHODS_WITH_BODY, true);
+    }
+
+    private function endpointToParameters(Endpoint $endpoint): array
+    {
+        $parameters = $this->createPathParameters($endpoint->pathParameters);
+
+        if ($endpoint->requestClass !== null) {
+            $parameters = array_merge($parameters, $this->createQueryParameters($endpoint));
+        }
+
+        return $parameters;
     }
 
     /**
-     * @return Parameter[]
+     * @param string[] $pathParams
      */
-    private function endpointToParameters(Endpoint $endpoint): array
+    private function createPathParameters(array $pathParams): array
     {
-        $parameters = [];
-
-        foreach ($endpoint->pathParameters as $param) {
-            $parameters[] = new Parameter(
+        return array_map(
+            fn (string $param) => new Parameter(
                 name: $param,
                 in: 'path',
                 required: true,
-                schema: new Schema(
-                    type: 'string',
-                ),
-            );
-        }
-
-        if ($endpoint->requestClass === null) {
-            return $parameters;
-        }
-
-        $schema = $this->typeToSchema(
-            new TypeReflector($endpoint->requestClass),
+                schema: new Schema(type: 'string'),
+            ),
+            $pathParams,
         );
+    }
+
+    private function createQueryParameters(Endpoint $endpoint): array
+    {
+        $schema = $this->typeToSchema(new TypeReflector($endpoint->requestClass));
+        $parameters = [];
 
         foreach ($schema->properties ?? [] as $propertyName => $property) {
             $parameters[] = new Parameter(
@@ -135,22 +158,14 @@ class SchemaGenerator
         return $parameters;
     }
 
-    /**
-     * @return Response[]
-     */
     private function endpointToResponses(Endpoint $endpoint): array
     {
-        return [
-            $this->endpointToOkResponse($endpoint),
-        ];
+        return [$this->createSuccessResponse($endpoint)];
     }
 
-    private function endpointToOkResponse(Endpoint $endpoint): Response
+    private function createSuccessResponse(Endpoint $endpoint): Response
     {
-        $response = new Response(
-            statusCode: 200,
-        );
-        $response->description = 'Successful Response';
+        $response = new Response(statusCode: 200, description: 'Successful Response');
 
         if ($endpoint->responseClass === null) {
             return $response;
@@ -168,49 +183,66 @@ class SchemaGenerator
 
     private function methodReturnToSchema(MethodReflector $methodReflector): Schema
     {
-        $classMetadata = $this->metadataExtractor->getClassMetadata($methodReflector->getDeclaringClass());
-        $returnTypeReflector = $methodReflector->getReturnType();
+        $classMetadata = $this->metadataExtractor->getClassMetadata(
+            $methodReflector->getDeclaringClass(),
+        );
 
         return $this->typeToSchema(
-            $returnTypeReflector,
+            $methodReflector->getReturnType(),
             $classMetadata->methods->getMethodReturnType($methodReflector->getName()),
         );
     }
 
     private function typeToSchema(TypeReflector $type, ?ArrayMetadata $arrayMeta = null): Schema
     {
-        $typekey = md5(json_encode([
+        $typeKey = $this->generateTypeKey($type, $arrayMeta);
+
+        if (isset($this->schemas[$typeKey])) {
+            return $this->schemas[$typeKey];
+        }
+
+        $schema = new Schema();
+        $this->schemas[$typeKey] = $schema;
+        $schema->nullable = $type->isNullable();
+
+        $this->populateSchema($type, $schema, $arrayMeta);
+
+        return $schema;
+    }
+
+    private function generateTypeKey(TypeReflector $type, ?ArrayMetadata $arrayMeta): string
+    {
+        return md5(json_encode([
             'type' => $type->getName(),
             'nullable' => $type->isNullable(),
             'arrayMeta' => $arrayMeta?->docBlock(),
         ]));
+    }
 
-        if (array_key_exists($typekey, $this->schemas)) {
-            return $this->schemas[$typekey];
-        }
+    private function populateSchema(TypeReflector $type, Schema $schema, ?ArrayMetadata $arrayMeta): void
+    {
+        match (true) {
+            $type->isIterable() => $this->handleIterableType($type, $schema, $arrayMeta),
+            $type->isBuiltIn() => $schema->type = $this->mapBuiltInType($type),
+            $type->isEnum() => $this->handleEnumType($type, $schema),
+            $type->matches(DateTimeInterface::class) => $this->handleDateTimeType($schema),
+            $type->isClass() => $this->handleClassType($type, $schema),
+            str_contains($type->getName(), '|') => $this->handleUnionType($type, $schema),
+            default => throw new TypeNotSupported($type),
+        };
+    }
 
-        $schema = new Schema();
-        $this->schemas[$typekey] = $schema;
-        $schema->nullable = $type->isNullable();
+    private function mapBuiltInType(TypeReflector $type): string
+    {
+        $typeName = $type->getName();
 
-        if ($type->isIterable()) {
-            $this->handleIterableType($type, $schema, $arrayMeta);
-        } elseif ($type->isBuiltIn()) {
-            $schema->type = $this->typeToString($type);
-        } elseif ($type->isEnum()) {
-            $this->handleEnumType($type, $schema);
-        } elseif ($type->matches(DateTimeInterface::class)) {
-            $schema->type = 'string';
-            $schema->format = 'date-time';
-        } elseif ($type->isClass()) {
-            $this->handleClassType($type, $schema);
-        } elseif (\str_contains($type->getName(), '|')) {
-            $this->handleUnionType($type, $schema);
-        } else {
-            throw new TypeNotSupported($type);
-        }
+        return self::BUILT_IN_TYPE_MAPPINGS[$typeName] ?? $typeName;
+    }
 
-        return $schema;
+    private function handleDateTimeType(Schema $schema): void
+    {
+        $schema->type = 'string';
+        $schema->format = 'date-time';
     }
 
     private function handleIterableType(TypeReflector $type, Schema $schema, ?ArrayMetadata $arrayMeta): void
@@ -218,9 +250,7 @@ class SchemaGenerator
         $schema->type = 'array';
 
         if ($arrayMeta !== null) {
-            $schema->items = $this->typeToSchema(
-                new TypeReflector($arrayMeta->type),
-            );
+            $schema->items = $this->typeToSchema(new TypeReflector($arrayMeta->type));
         }
     }
 
@@ -229,20 +259,10 @@ class SchemaGenerator
         $schema->type = 'string';
         $schema->name = $type->getShortName();
 
-        if ($type->isBackedEnum()) {
-            $cases = array_map(
-                fn ($case) => $case->value,
-                $type->getName()::cases(),
-            );
-            $schema->enum = $cases;
+        $cases = $type->isBackedEnum()
+            ? array_map(fn ($case) => $case->value, $type->getName()::cases())
+            : array_map(fn ($case) => $case->name, $type->getName()::cases());
 
-            return;
-        }
-
-        $cases = array_map(
-            fn ($case) => $case->name,
-            $type->getName()::cases(),
-        );
         $schema->enum = $cases;
     }
 
@@ -250,6 +270,11 @@ class SchemaGenerator
     {
         $schema->name = $type->getShortName();
         $schema->type = 'object';
+        $schema->properties = $this->extractClassProperties($type);
+    }
+
+    private function extractClassProperties(TypeReflector $type): array
+    {
         $properties = [];
         $classMeta = $this->metadataExtractor->getClassMetadata($type->asClass());
 
@@ -264,47 +289,21 @@ class SchemaGenerator
             $properties[$property->getName()] = $propertySchema;
         }
 
-        $schema->properties = $properties;
+        return $properties;
     }
 
     private function handleUnionType(TypeReflector $type, Schema $schema): void
     {
-        $types = [];
-        foreach (explode('|', $type->getName()) as $unionType) {
-            $unionTypeReflector = new TypeReflector($unionType);
-            $types[] = $this->typeToSchema($unionTypeReflector);
-        }
+        $types = array_map(
+            fn (string $unionType) => $this->typeToSchema(new TypeReflector($unionType)),
+            explode('|', $type->getName()),
+        );
+
         $schema->oneOf = $types;
     }
 
     private function shouldSkipProperty(PropertyReflector $propertyReflector, TypeReflector $parentType): bool
     {
-        if ($parentType->matches(Request::class)) {
-            // @TODO: probably shouldn't use this attribute for this purpose
-            if ($propertyReflector->hasAttribute(SkipValidation::class)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function typeToString(TypeReflector $type): string
-    {
-        if ($type->isBuiltIn()) {
-            $type = $type->getName();
-
-            if ($type === 'int') {
-                return 'integer';
-            }
-
-            if ($type === 'bool') {
-                return 'boolean';
-            }
-
-            return $type;
-        }
-
-        return $type->getShortName();
+        return $parentType->matches(Request::class) && $propertyReflector->hasAttribute(SkipValidation::class);
     }
 }
