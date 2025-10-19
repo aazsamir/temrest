@@ -11,7 +11,7 @@ use Tempest\Reflection\TypeReflector;
 // I thought that it would be easier and at some point I was too far deep into it to back out
 class MetadataExtractor
 {
-    private const CLASS_DEFINITIONS = [
+    private const array CLASS_DEFINITIONS = [
         'class',
         'readonly class',
         'final class',

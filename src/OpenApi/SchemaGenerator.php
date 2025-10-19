@@ -27,8 +27,8 @@ use Tempest\Validation\SkipValidation;
 
 class SchemaGenerator
 {
-    private const METHODS_WITH_BODY = [Method::POST, Method::PUT, Method::PATCH];
-    private const BUILT_IN_TYPE_MAPPINGS = [
+    private const array METHODS_WITH_BODY = [Method::POST, Method::PUT, Method::PATCH];
+    private const array BUILT_IN_TYPE_MAPPINGS = [
         'int' => 'integer',
         'bool' => 'boolean',
     ];

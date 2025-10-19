@@ -48,8 +48,8 @@ class Endpoint
         return new self(
             route: $route,
             pathParameters: $discoveredRoute->parameters,
-            requestClass: $apiInfo?->requestClass ?? $requestClass,
-            responseClass: $apiInfo?->responseClass ?? $responseClass,
+            requestClass: $apiInfo->requestClass ?? $requestClass,
+            responseClass: $apiInfo->responseClass ?? $responseClass,
             apiInfo: $apiInfo,
         );
     }
