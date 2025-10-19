@@ -118,6 +118,10 @@ class SchemaGenerator
     {
         $parameters = $this->createPathParameters($endpoint->pathParameters);
 
+        if ($this->methodHasBody($endpoint->route->method)) {
+            return $parameters;
+        }
+
         if ($endpoint->requestClass !== null) {
             $parameters = array_merge($parameters, $this->createQueryParameters($endpoint));
         }
@@ -193,7 +197,7 @@ class SchemaGenerator
         );
     }
 
-    private function typeToSchema(TypeReflector $type, ?ArrayMetadata $arrayMeta = null): Schema
+    public function typeToSchema(TypeReflector $type, ?ArrayMetadata $arrayMeta = null): Schema
     {
         $typeKey = $this->generateTypeKey($type, $arrayMeta);
 
@@ -223,6 +227,7 @@ class SchemaGenerator
     {
         match (true) {
             $type->isIterable() => $this->handleIterableType($type, $schema, $arrayMeta),
+            $type->getName() === 'float' => $this->handleFloatType($schema),
             $type->isBuiltIn() => $schema->type = $this->mapBuiltInType($type),
             $type->isEnum() => $this->handleEnumType($type, $schema),
             $type->matches(DateTimeInterface::class) => $this->handleDateTimeType($schema),
@@ -230,6 +235,12 @@ class SchemaGenerator
             str_contains($type->getName(), '|') => $this->handleUnionType($type, $schema),
             default => throw new TypeNotSupported($type),
         };
+    }
+
+    private function handleFloatType(Schema $schema): void
+    {
+        $schema->type = 'number';
+        $schema->format = 'float';
     }
 
     private function mapBuiltInType(TypeReflector $type): string

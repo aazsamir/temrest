@@ -7,6 +7,11 @@
             "Aazsamir\\Temrest\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
     "authors": [
         {
             "name": "aazsamir",
@@ -18,7 +23,8 @@
         "tempest/framework": "dev-main"
     },
     "require-dev": {
-        "carthage-software/mago": "dev-main"
+        "carthage-software/mago": "dev-main",
+        "phpunit/phpunit": "^13.0@dev"
     },
     "config": {
         "allow-plugins": {
