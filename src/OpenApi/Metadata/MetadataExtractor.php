@@ -11,6 +11,15 @@ use Tempest\Reflection\TypeReflector;
 // I thought that it would be easier and at some point I was too far deep into it to back out
 class MetadataExtractor
 {
+    private const CLASS_DEFINITIONS = [
+        'class',
+        'readonly class',
+        'final class',
+        'abstract class',
+        'final readonly class',
+        'readonly final class',
+    ];
+
     /**
      * @var array<string, ClassMetadata>
      */
@@ -18,51 +27,19 @@ class MetadataExtractor
 
     public function getClassMetadata(ClassReflector $classReflector): ClassMetadata
     {
-        if (array_key_exists($classReflector->getName(), $this->metadatas)) {
-            return $this->metadatas[$classReflector->getName()];
+        $className = $classReflector->getName();
+
+        if (isset($this->metadatas[$className])) {
+            return $this->metadatas[$className];
         }
 
+        $metadata = new ClassMetadata(type: $className);
         $uses = $this->getUseStatements($classReflector);
 
-        // $metadata = [];
-        $metadata = new ClassMetadata(
-            type: $classReflector->getName(),
-        );
+        $this->extractMethodsMetadata($classReflector, $metadata, $uses);
+        $this->extractPropertiesMetadata($classReflector, $metadata, $uses);
 
-        foreach ($classReflector->getPublicMethods() as $methodReflector) {
-            $returnTypeMetadata = $this->getReturnTypeMetadata($methodReflector, $uses);
-
-            if ($returnTypeMetadata) {
-                $metadata->methods->setMethodReturnType(
-                    methodName: $methodReflector->getName(),
-                    returnType: $returnTypeMetadata,
-                );
-            }
-
-            $parametersMetadata = $this->getParametersMetadata($methodReflector, $uses);
-
-            foreach ($parametersMetadata as $parameterMetadata) {
-                $metadata->addMethodParameter(
-                    methodName: $methodReflector->getName(),
-                    parameter: $parameterMetadata,
-                );
-            }
-        }
-
-        foreach ($classReflector->getProperties() as $propertyReflector) {
-            $propertyMetadata = $this->getPropertyMetadata($propertyReflector, $uses);
-
-            if ($propertyMetadata) {
-                $metadata->properties->addProperty(
-                    new PropertyMetadata(
-                        name: $propertyReflector->getName(),
-                        type: $propertyMetadata,
-                    ),
-                );
-            }
-        }
-
-        $this->metadatas[$classReflector->getName()] = $metadata;
+        $this->metadatas[$className] = $metadata;
 
         return $metadata;
     }
@@ -72,34 +49,113 @@ class MetadataExtractor
         $uses = [];
         $file = fopen($classReflector->getReflection()->getFileName(), 'r');
 
-        while (($line = fgets($file)) !== false) {
-            // @TODO: handle `as` imports
-            if (preg_match('/use\s+([^;]+);/', $line, $matches)) {
-                $fullClass = trim($matches[1]);
-                $shortClass = substr($fullClass, strrpos($fullClass, '\\') + 1);
-                $uses[$shortClass] = $fullClass;
-            }
+        try {
+            while (($line = fgets($file)) !== false) {
+                $parsedUse = $this->parseUseStatement($line);
 
-            $classDefinitions = [
-                'class',
-                'readonly class',
-                'final class',
-                'abstract class',
-                'final readonly class',
-                'readonly final class',
-            ];
-
-            foreach ($classDefinitions as $definition) {
-                if (str_starts_with(trim($line), $definition . ' ')) {
-                    // reached class definition, stop processing further
-                    break 2;
+                if ($parsedUse) {
+                    [$shortClass, $fullClass] = $parsedUse;
+                    $uses[$shortClass] = $fullClass;
                 }
+
+                if ($this->isClassDefinitionLine($line)) {
+                    break;
+                }
+            }
+        } finally {
+            fclose($file);
+        }
+
+        return $uses;
+    }
+
+    /**
+     * @return array{string, string}|null
+     */
+    private function parseUseStatement(string $line): ?array
+    {
+        // @TODO: handle `as` imports
+        if (preg_match('/use\s+([^;]+);/', $line, $matches)) {
+            $fullClass = trim($matches[1]);
+            $shortClass = substr($fullClass, strrpos($fullClass, '\\') + 1);
+
+            return [$shortClass, $fullClass];
+        }
+
+        return null;
+    }
+
+    private function isClassDefinitionLine(string $line): bool
+    {
+        foreach (self::CLASS_DEFINITIONS as $definition) {
+            if (str_starts_with(trim($line), $definition . ' ')) {
+                return true;
             }
         }
 
-        fclose($file);
+        return false;
+    }
 
-        return $uses;
+    private function extractMethodsMetadata(
+        ClassReflector $classReflector,
+        ClassMetadata $metadata,
+        array $uses,
+    ): void {
+        foreach ($classReflector->getPublicMethods() as $methodReflector) {
+            $this->extractMethodReturnTypeMetadata($methodReflector, $metadata, $uses);
+            $this->extractMethodParametersMetadata($methodReflector, $metadata, $uses);
+        }
+    }
+
+    private function extractMethodReturnTypeMetadata(
+        MethodReflector $methodReflector,
+        ClassMetadata $metadata,
+        array $uses,
+    ): void {
+        $returnTypeMetadata = $this->getReturnTypeMetadata($methodReflector, $uses);
+
+        if ($returnTypeMetadata) {
+            $metadata->methods->setMethodReturnType(
+                methodName: $methodReflector->getName(),
+                returnType: $returnTypeMetadata,
+            );
+        }
+    }
+
+    private function extractMethodParametersMetadata(
+        MethodReflector $methodReflector,
+        ClassMetadata $metadata,
+        array $uses,
+    ): void {
+        $parametersMetadata = $this->getParametersMetadata($methodReflector, $uses);
+
+        foreach ($parametersMetadata as $parameterMetadata) {
+            $metadata->addMethodParameter(
+                methodName: $methodReflector->getName(),
+                parameter: $parameterMetadata,
+            );
+        }
+    }
+
+    private function extractPropertiesMetadata(
+        ClassReflector $classReflector,
+        ClassMetadata $metadata,
+        array $uses,
+    ): void {
+        foreach ($classReflector->getProperties() as $propertyReflector) {
+            $propertyMetadata = $this->getPropertyMetadata($propertyReflector, $uses);
+
+            if (!$propertyMetadata) {
+                continue;
+            }
+
+            $metadata->properties->addProperty(
+                new PropertyMetadata(
+                    name: $propertyReflector->getName(),
+                    type: $propertyMetadata,
+                ),
+            );
+        }
     }
 
     private function getReturnTypeMetadata(MethodReflector $methodReflector, array $uses): ?ArrayMetadata
