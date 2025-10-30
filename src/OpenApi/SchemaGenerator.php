@@ -175,14 +175,38 @@ class SchemaGenerator
             return $response;
         }
 
-        $classReflector = new ClassReflector($endpoint->responseClass);
+        if (str_contains($endpoint->responseClass, '|')) {
+            $types = explode('|', $endpoint->responseClass);
+            $schemas = [];
+
+            foreach ($types as $type) {
+                $schemas[] = $this->createResponseType($type);
+            }
+
+            $schemas = array_filter($schemas);
+            $response->schema = new Schema(
+                oneOf: $schemas,
+            );
+
+            return $response;
+        }
+
+        $response->schema = $this->createResponseType($endpoint->responseClass);
+
+        return $response;
+    }
+
+    private function createResponseType(string $responseClass): ?Schema
+    {
+        $classReflector = new ClassReflector($responseClass);
 
         if ($classReflector->is(ApiResponse::class)) {
             $methodReflector = $classReflector->getMethod('toResponse');
-            $response->schema = $this->methodReturnToSchema($methodReflector);
+
+            return $this->methodReturnToSchema($methodReflector);
         }
 
-        return $response;
+        return null;
     }
 
     private function methodReturnToSchema(MethodReflector $methodReflector): Schema

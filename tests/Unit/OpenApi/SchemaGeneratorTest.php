@@ -173,9 +173,4 @@ class SchemaGeneratorTest extends TestCase
     {
         return $this->generator->typeToSchema(new TypeReflector($type));
     }
-
-    private function assertSchemas(Schema $expected, Schema $actual): void
-    {
-        $this->assertEquals($expected->toArray(false), $actual->toArray(false));
-    }
 }
