@@ -5,11 +5,9 @@ declare(strict_types=1);
 namespace Tests\Unit\OpenApi;
 
 use Aazsamir\Temrest\Api\ApiConfig;
-use Aazsamir\Temrest\OpenApi\Metadata\ClassMetadata;
 use Aazsamir\Temrest\OpenApi\Metadata\MetadataExtractor;
 use Aazsamir\Temrest\OpenApi\Schema\Schema;
 use Aazsamir\Temrest\OpenApi\SchemaGenerator;
-use Tempest\Reflection\ClassReflector;
 use Tempest\Reflection\TypeReflector;
 use Tests\Fixtures\Arrays;
 use Tests\Fixtures\DefaultValue;
@@ -17,6 +15,7 @@ use Tests\Fixtures\PlainObject;
 use Tests\Fixtures\PureEnum;
 use Tests\Fixtures\StringEnum;
 use Tests\Fixtures\UnionType;
+use Tests\Fixtures\Weird\FullArrayTypeResponse;
 use Tests\TestCase;
 
 class SchemaGeneratorTest extends TestCase
@@ -161,6 +160,13 @@ class SchemaGeneratorTest extends TestCase
         );
 
         $this->assertSchemas($expected, $schema);
+    }
+
+    public function testFullTypeArray(): void
+    {
+        $schema = $this->schemaForType(FullArrayTypeResponse::class);
+
+        $this->assertEquals('PlainObject', $schema->properties['fullTyped']->items->name);
     }
 
     private function schemaForType(string $type): Schema

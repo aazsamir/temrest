@@ -269,6 +269,10 @@ class MetadataExtractor
 
     private function shortToFullType(string $type, array $uses, ClassReflector $classReflector): string
     {
+        if (\str_starts_with($type, '\\')) {
+            return ltrim($type, '\\');
+        }
+
         $typeReflector = new TypeReflector($type);
 
         if ($typeReflector->isBuiltIn() || $type === 'mixed') {
