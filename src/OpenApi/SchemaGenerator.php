@@ -329,12 +329,20 @@ class SchemaGenerator
 
     private function handleUnionType(TypeReflector $type, Schema $schema): void
     {
-        $types = array_map(
-            fn (string $unionType) => $this->typeToSchema(new TypeReflector($unionType)),
-            explode('|', $type->getName()),
-        );
+        $types = \explode('|', $type->getName());
+        $schemas = [];
 
-        $schema->oneOf = $types;
+        foreach ($types as $unionType) {
+            if ($unionType === 'null') {
+                $schema->nullable = true;
+
+                continue;
+            }
+
+            $schemas[] = $this->typeToSchema(new TypeReflector($unionType));
+        }
+
+        $schema->oneOf = $schemas;
     }
 
     private function shouldSkipProperty(PropertyReflector $propertyReflector, TypeReflector $parentType): bool

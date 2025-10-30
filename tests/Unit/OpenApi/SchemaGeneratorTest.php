@@ -16,6 +16,7 @@ use Tests\Fixtures\PureEnum;
 use Tests\Fixtures\StringEnum;
 use Tests\Fixtures\UnionType;
 use Tests\Fixtures\Weird\FullArrayTypeResponse;
+use Tests\Fixtures\Weird\NullInUnion;
 use Tests\TestCase;
 
 class SchemaGeneratorTest extends TestCase
@@ -167,6 +168,33 @@ class SchemaGeneratorTest extends TestCase
         $schema = $this->schemaForType(FullArrayTypeResponse::class);
 
         $this->assertEquals('PlainObject', $schema->properties['fullTyped']->items->name);
+    }
+
+    public function testNullInUnion(): void
+    {
+        $schema = $this->schemaForType(NullInUnion::class);
+        $expected = new Schema(
+            name: 'NullInUnion',
+            type: 'object',
+            properties: [
+                'value' => new Schema(
+                    oneOf: [
+                        new Schema(
+                            type: 'string',
+                            nullable: false,
+                        ),
+                        new Schema(
+                            type: 'integer',
+                            nullable: false,
+                        ),
+                    ],
+                    nullable: true,
+                ),
+            ],
+            nullable: false,
+        );
+
+        $this->assertSchemas($expected, $schema);
     }
 
     private function schemaForType(string $type): Schema
