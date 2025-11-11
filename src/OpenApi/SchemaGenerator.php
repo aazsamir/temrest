@@ -257,6 +257,7 @@ class SchemaGenerator
             $type->matches(DateTimeInterface::class) => $this->handleDateTimeType($schema),
             $type->isClass() => $this->handleClassType($type, $schema),
             str_contains($type->getName(), '|') => $this->handleUnionType($type, $schema),
+            $type->getName() === 'mixed' => null,
             default => throw new TypeNotSupported($type),
         };
     }

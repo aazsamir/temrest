@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Fixtures\Weird;
+namespace Tests\Fixtures;
 
 class NullInUnion
 {

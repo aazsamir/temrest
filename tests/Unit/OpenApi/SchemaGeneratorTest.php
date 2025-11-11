@@ -11,12 +11,15 @@ use Aazsamir\Temrest\OpenApi\SchemaGenerator;
 use Tempest\Reflection\TypeReflector;
 use Tests\Fixtures\Arrays;
 use Tests\Fixtures\DefaultValue;
+use Tests\Fixtures\MixedArray;
+use Tests\Fixtures\MixedProperty;
 use Tests\Fixtures\PlainObject;
 use Tests\Fixtures\PureEnum;
 use Tests\Fixtures\StringEnum;
 use Tests\Fixtures\UnionType;
 use Tests\Fixtures\Weird\FullArrayTypeResponse;
-use Tests\Fixtures\Weird\NullInUnion;
+use Tests\Fixtures\NullInUnion;
+use Tests\Fixtures\UnionWithMixedArray;
 use Tests\TestCase;
 
 class SchemaGeneratorTest extends TestCase
@@ -189,6 +192,71 @@ class SchemaGeneratorTest extends TestCase
                         ),
                     ],
                     nullable: true,
+                ),
+            ],
+            nullable: false,
+        );
+
+        $this->assertSchemas($expected, $schema);
+    }
+
+    public function testMixedProperty(): void
+    {
+        $schema = $this->schemaForType(MixedProperty::class);
+        $expected = new Schema(
+            name: 'MixedProperty',
+            type: 'object',
+            properties: [
+                'mixed' => new Schema(
+                    nullable: true,
+                ),
+            ],
+            nullable: false,
+        );
+
+        $this->assertSchemas($expected, $schema);
+    }
+
+    public function testMixedArray(): void
+    {
+        $schema = $this->schemaForType(MixedArray::class);
+        $expected = new Schema(
+            name: 'MixedArray',
+            type: 'object',
+            properties: [
+                'mixed' => new Schema(
+                    type: 'array',
+                    nullable: false,
+                    items: new Schema(
+                        nullable: false,
+                    ),
+                ),
+            ],
+            nullable: false,
+        );
+
+        $this->assertSchemas($expected, $schema);
+    }
+
+    public function testUnionWithMixedArray(): void
+    {
+        $schema = $this->schemaForType(UnionWithMixedArray::class);
+        $expected = new Schema(
+            name: 'UnionWithMixedArray',
+            type: 'object',
+            properties: [
+                'value' => new Schema(
+                    nullable: false,
+                    oneOf: [
+                        new Schema(
+                            type: 'array',
+                            nullable: false,
+                        ),
+                        new Schema(
+                            type: 'string',
+                            nullable: false,
+                        ),
+                    ],
                 ),
             ],
             nullable: false,
