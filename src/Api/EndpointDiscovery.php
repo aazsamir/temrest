@@ -44,7 +44,7 @@ class EndpointDiscovery implements Discovery
             /** @var Route $routeAttribute */
             /** @var ApiInfo|null $apiInfoAttribute */
 
-            $discoveredRoute = DiscoveredRoute::fromRoute($routeAttribute, $method);
+            $discoveredRoute = DiscoveredRoute::fromRoute($routeAttribute, [], $method);
             $endpoint = Endpoint::fromRoute($routeAttribute, $discoveredRoute, $method, $apiInfoAttribute);
 
             $this->apiConfig->addEndpoint($endpoint);
